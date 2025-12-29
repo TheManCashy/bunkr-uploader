@@ -166,7 +166,7 @@ async fn main() {
     for file_path in &files_paths {
         let current_dir = env::current_dir().unwrap();
         let absolute_file_path = current_dir.join(&file_path);
-        let file_info = get_file_info(&file_path, custom_mime_type.as_ref());
+        let file_info = get_file_info(&file_path, custom_mime_type.as_deref());
 
         let logs_contents: String = match fs::read_to_string(&logs_file_path) {
             Ok(content) => content,
@@ -246,7 +246,7 @@ async fn main() {
     fs::remove_dir_all(chunks_folder).expect("failed to remove chunks directory");
 }
 
-fn get_file_info(file_path: &PathBuf, custom_mime_type: Option<&String>) -> FileInfo {
+fn get_file_info(file_path: &PathBuf, custom_mime_type: Option<&str>) -> FileInfo {
     let basename = Command::new("basename")
         .arg(&file_path)
         .output()
@@ -262,7 +262,7 @@ fn get_file_info(file_path: &PathBuf, custom_mime_type: Option<&String>) -> File
     let size: u64 = str_size.parse().unwrap();
 
     let mime_type = match custom_mime_type {
-        Some(custom_type) => custom_type.clone(),
+        Some(custom_type) => custom_type.to_string(),
         None => {
             let mimetype_stdout = Command::new("file")
                 .arg("--mime-type")
