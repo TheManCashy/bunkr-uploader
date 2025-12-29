@@ -269,7 +269,7 @@ fn get_file_info(file_path: &PathBuf, custom_mime_type: Option<&String>) -> File
                 .arg("-b")
                 .arg(&file_path)
                 .output()
-                .expect("size command failed to start");
+                .expect("file command failed to start");
             str::from_utf8(&mimetype_stdout.stdout)
                 .expect("invalid UTF-8 in `file` output")
                 .trim()
