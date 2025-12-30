@@ -55,15 +55,34 @@ pub struct Album {
 pub async fn get_albums(token: &str) -> Result<AlbumResponse, Box<dyn Error>> {
     println!("{}", "Fetching Albums...".green());
     let client = Client::new();
-    let response = client
-        .get("https://dash.bunkr.cr/api/albums")
-        .header("token", token)
-        .send()
-        .await?
-        .text()
-        .await?;
-    let json: AlbumResponse = serde_json::from_str(&response)?;
-    Ok(json)
+    let mut all_albums = Vec::new();
+    let mut page = 0;
+
+    loop {
+        let url = format!("https://dash.bunkr.cr/api/albums/{}", page);
+        let response = client
+            .get(&url)
+            .header("token", token)
+            .send()
+            .await?
+            .text()
+            .await?;
+        
+        let json: AlbumResponse = serde_json::from_str(&response)?;
+        
+        // If the albums array is empty, we've reached the end
+        if json.albums.is_empty() {
+            break;
+        }
+        
+        // Add albums from this page to our collection
+        all_albums.extend(json.albums);
+        page += 1;
+    }
+
+    Ok(AlbumResponse {
+        albums: all_albums,
+    })
 }
 
 #[derive(Debug, Deserialize)]
