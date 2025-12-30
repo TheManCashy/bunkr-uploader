@@ -50,13 +50,18 @@ pub struct Args {
 
     #[arg(short = 'f', help = "force upload without skipping(for special case)")]
     force: bool,
+
+    #[arg(short = 't', long = "type", help = "override MIME type (e.g., video/mp4, text/plain)")]
+    mime_type: Option<String>,
 }
 
 #[tokio::main]
 async fn main() {
     human_panic::setup_panic!();
-    let paths = Args::parse().paths;
-    let force_upload = Args::parse().force;
+    let args = Args::parse();
+    let paths = args.paths;
+    let force_upload = args.force;
+    let custom_mime_type = args.mime_type;
 
     let mut files_paths: Vec<PathBuf> = vec![];
     let mut upload_from_all_sub_dir = false;
@@ -161,7 +166,7 @@ async fn main() {
     for file_path in &files_paths {
         let current_dir = env::current_dir().unwrap();
         let absolute_file_path = current_dir.join(&file_path);
-        let file_info = get_file_info(&file_path);
+        let file_info = get_file_info(&file_path, custom_mime_type.as_deref());
 
         let logs_contents: String = match fs::read_to_string(&logs_file_path) {
             Ok(content) => content,
@@ -241,7 +246,7 @@ async fn main() {
     fs::remove_dir_all(chunks_folder).expect("failed to remove chunks directory");
 }
 
-fn get_file_info(file_path: &PathBuf) -> FileInfo {
+fn get_file_info(file_path: &PathBuf, custom_mime_type: Option<&str>) -> FileInfo {
     let basename = Command::new("basename")
         .arg(&file_path)
         .output()
@@ -256,16 +261,21 @@ fn get_file_info(file_path: &PathBuf) -> FileInfo {
     let str_size = str::from_utf8(&get_size.stdout).unwrap().trim();
     let size: u64 = str_size.parse().unwrap();
 
-    let mimetype_stdout = Command::new("file")
-        .arg("--mime-type")
-        .arg("-b")
-        .arg(&file_path)
-        .output()
-        .expect("size command failed to start");
-    let mime_type = str::from_utf8(&mimetype_stdout.stdout)
-        .expect("invalid UTF-8 in `file` output")
-        .trim()
-        .to_string();
+    let mime_type = match custom_mime_type {
+        Some(custom_type) => custom_type.to_string(),
+        None => {
+            let mimetype_stdout = Command::new("file")
+                .arg("--mime-type")
+                .arg("-b")
+                .arg(&file_path)
+                .output()
+                .expect("file command failed to start");
+            str::from_utf8(&mimetype_stdout.stdout)
+                .expect("invalid UTF-8 in `file` output")
+                .trim()
+                .to_string()
+        }
+    };
 
     FileInfo {
         name,
