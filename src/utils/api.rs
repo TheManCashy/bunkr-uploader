@@ -57,8 +57,14 @@ pub async fn get_albums(token: &str) -> Result<AlbumResponse, Box<dyn Error>> {
     let client = Client::new();
     let mut all_albums = Vec::new();
     let mut page = 0;
+    const MAX_PAGES: u32 = 100; // Safety limit to prevent infinite loops
 
     loop {
+        if page >= MAX_PAGES {
+            eprintln!("Warning: Reached maximum page limit ({}). Some albums may not be loaded.", MAX_PAGES);
+            break;
+        }
+
         let url = format!("https://dash.bunkr.cr/api/albums/{}", page);
         let response = client
             .get(&url)
