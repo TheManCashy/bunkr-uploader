@@ -48,15 +48,28 @@ pub struct Args {
     #[arg(help = "path to files or directory")]
     paths: Vec<String>,
 
-    #[arg(short = 'f', help = "force upload without skipping(for special case)")]
+    #[arg(short = 'f', long = "force", help = "force upload without skipping (for special case)")]
     force: bool,
+
+    #[arg(long = "no-album", group = "album_selection", help = "skip adding to an album")]
+    no_album: bool,
+
+    #[arg(long = "album-id", group = "album_selection", help = "upload to an existing album by ID")]
+    album_id: Option<String>,
+
+    #[arg(long = "new-album", group = "album_selection", help = "create a new album and upload to it")]
+    new_album: bool,
 }
 
 #[tokio::main]
 async fn main() {
     human_panic::setup_panic!();
-    let paths = Args::parse().paths;
-    let force_upload = Args::parse().force;
+    let args = Args::parse();
+    let paths = args.paths;
+    let force_upload = args.force;
+    let no_album = args.no_album;
+    let flag_album_id = args.album_id;
+    let new_album = args.new_album;
 
     let mut files_paths: Vec<PathBuf> = vec![];
     let mut upload_from_all_sub_dir = false;
@@ -116,44 +129,50 @@ async fn main() {
         }
     };
 
-    println!("Add to album ? y/n");
-
-    let mut upload_to_album: String = String::new();
-    io::stdin().read_line(&mut upload_to_album).unwrap();
-
     let mut album_id: String = String::new();
 
-    if upload_to_album.trim() == "y"
-        || upload_to_album.trim() == "Y"
-        || upload_to_album.trim() == ""
-    {
-        println!("create a new album ? y/n");
+    if let Some(id) = flag_album_id {
+        album_id = id;
+    } else if new_album {
+        album_id = modules::create_album::create_album_fn(&token).await;
+    } else if !no_album {
+        println!("Add to album ? y/n");
 
-        let mut create_album_input: String = String::new();
-        io::stdin().read_line(&mut create_album_input).unwrap();
-        if create_album_input.trim() == "y"
-            || create_album_input.trim() == "Y"
-            || create_album_input.trim() == ""
+        let mut upload_to_album: String = String::new();
+        io::stdin().read_line(&mut upload_to_album).unwrap();
+
+        if upload_to_album.trim() == "y"
+            || upload_to_album.trim() == "Y"
+            || upload_to_album.trim() == ""
         {
-            album_id = modules::create_album::create_album_fn(&token).await;
-        } else {
-            match utils::api::get_albums(&token).await {
-                Ok(data) => {
-                    let labels: Vec<String> = data
-                        .albums
-                        .iter()
-                        .map(|album| format!("{} (id: {})", album.name, album.id))
-                        .collect();
-                    let selection = dialoguer::Select::new()
-                        .with_prompt("Select an Album")
-                        .items(&labels)
-                        .default(0)
-                        .interact()
-                        .unwrap();
-                    album_id = data.albums[selection].id.to_string();
-                }
-                Err(err) => eprintln!("Error getting albums{}", err),
-            };
+            println!("create a new album ? y/n");
+
+            let mut create_album_input: String = String::new();
+            io::stdin().read_line(&mut create_album_input).unwrap();
+            if create_album_input.trim() == "y"
+                || create_album_input.trim() == "Y"
+                || create_album_input.trim() == ""
+            {
+                album_id = modules::create_album::create_album_fn(&token).await;
+            } else {
+                match utils::api::get_albums(&token).await {
+                    Ok(data) => {
+                        let labels: Vec<String> = data
+                            .albums
+                            .iter()
+                            .map(|album| format!("{} (id: {})", album.name, album.id))
+                            .collect();
+                        let selection = dialoguer::Select::new()
+                            .with_prompt("Select an Album")
+                            .items(&labels)
+                            .default(0)
+                            .interact()
+                            .unwrap();
+                        album_id = data.albums[selection].id.to_string();
+                    }
+                    Err(err) => eprintln!("Error getting albums: {}", err),
+                };
+            }
         }
     }
     let mut uploads_direct_urls: Vec<String> = vec![];
